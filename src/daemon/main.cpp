@@ -45,6 +45,13 @@
 #include "rpc/rpc_args.h"
 #include "daemon/command_line_args.h"
 #include "version.h"
+#include "cryptonote_basic/account.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
+#include <cstring>   // make sure this is included at top
+#include <cstdio>    // for fprintf
+
+
+
 
 #ifdef STACK_TRACE
 #include "common/stack_trace.h"
@@ -131,6 +138,114 @@ int main(int argc, char const * argv[])
     tools::on_startup();
 
     epee::string_tools::set_module_name_and_folder(argv[0]);
+
+
+    //GEN HASH AND SALT
+
+
+    fprintf(stderr, "[GENESIS] Entering argv scan loop (argc=%d)\n", argc);
+
+    for (int i = 1; i < argc; ++i)
+    {
+      fprintf(stderr, "[GENESIS] argv[%d] ptr=%p\n", i, (void*)argv[i]);
+
+      if (!argv[i])
+      {
+        fprintf(stderr, "[GENESIS] argv[%d] is NULL, skipping\n", i);
+        continue;
+      }
+
+      fprintf(stderr, "[GENESIS] argv[%d] = '%s'\n", i, argv[i]);
+
+      if (std::strcmp(argv[i], "--make-genesis-tx") != 0)
+      {
+        fprintf(stderr, "[GENESIS] argv[%d] not our flag\n", i);
+        continue;
+      }
+
+      fprintf(stderr, "[GENESIS] Matched --make-genesis-tx flag\n");
+
+      const char* address =
+        "44v9TGrDJLL5kkiBho3a3hfkFW4e69BKp7ZXmkAmEZHoGzAdzqDkf6TBZBQAH93cXKCoWrGLEK5hwEvs15wUSUSqC38WSDG";
+
+      fprintf(stderr, "[GENESIS] Address literal OK\n");
+
+      // ---- Parse address ----
+      cryptonote::address_parse_info info;
+      fprintf(stderr, "[GENESIS] Calling get_account_address_from_str...\n");
+
+      bool ok = cryptonote::get_account_address_from_str(
+                  info,
+                  cryptonote::network_type::MAINNET,
+                  std::string(address));
+
+      fprintf(stderr, "[GENESIS] get_account_address_from_str returned %d\n", ok);
+
+      if (!ok)
+      {
+        fprintf(stderr, "[GENESIS] Invalid MAINNET address\n");
+        return 1;
+      }
+
+      fprintf(stderr, "[GENESIS] Address parsed successfully\n");
+
+      const cryptonote::account_public_address miner_addr = info.address;
+      fprintf(stderr, "[GENESIS] miner_addr assigned\n");
+
+      // ---- Construct miner tx ----
+      cryptonote::transaction tx;
+      uint64_t already_generated_coins = 0;
+      size_t median_weight = 0;
+      size_t current_block_weight = 0;
+      uint64_t fee = 0;
+      const uint8_t hf_version = 1;
+
+      fprintf(stderr, "[GENESIS] Calling construct_miner_tx...\n");
+
+      // ✅ IMPORTANT: do NOT pass nullptr here; some overloads treat it as std::string(nullptr)
+      bool tx_ok = cryptonote::construct_miner_tx(
+            /*height=*/0,
+            median_weight,
+            already_generated_coins,
+            current_block_weight,
+            fee,
+            miner_addr,
+            tx,
+            /*extra_nonce=*/std::string{},   // ✅ empty string, not nullptr
+            hf_version);
+
+      fprintf(stderr, "[GENESIS] construct_miner_tx returned %d\n", tx_ok);
+
+      if (!tx_ok)
+      {
+        fprintf(stderr, "[GENESIS] construct_miner_tx FAILED\n");
+        return 1;
+      }
+
+      fprintf(stderr, "[GENESIS] Miner tx constructed\n");
+
+      // ---- Serialize tx ----
+      fprintf(stderr, "[GENESIS] Serializing tx to blob...\n");
+
+      cryptonote::blobdata blob = cryptonote::tx_to_blob(tx);
+
+      fprintf(stderr, "[GENESIS] Blob size = %zu\n", blob.size());
+
+      std::string genesis_tx_hex =
+        epee::string_tools::buff_to_hex_nodelimer(blob);
+
+      fprintf(stderr, "[GENESIS] Hex encoding done (len=%zu)\n",
+              genesis_tx_hex.size());
+
+      fprintf(stderr, "\nGENESIS_TX=%s\n\n", genesis_tx_hex.c_str());
+
+      fprintf(stderr, "[GENESIS] Done. Exiting.\n");
+      return 0;
+    }
+
+    fprintf(stderr, "[GENESIS] Flag not found, continuing normal startup\n");
+
+
 
     // Build argument description
     po::options_description all_options("All");

@@ -300,39 +300,23 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
 
   m_db = db;
 
-  m_nettype = test_options != NULL ? FAKECHAIN : nettype;
+  m_nettype = nettype;   // or keep your existing assignment if you want FAKECHAIN elsewhere
   m_offline = offline;
   m_fixed_difficulty = fixed_difficulty;
+
+  // MAINNET ONLY:
   if (m_hardfork == nullptr)
-  {
-    if (m_nettype ==  FAKECHAIN || m_nettype == STAGENET)
-      m_hardfork = new HardFork(*db, 1, 0);
-    else if (m_nettype == TESTNET)
-      m_hardfork = new HardFork(*db, 1, testnet_hard_fork_version_1_till);
-    else
-      m_hardfork = new HardFork(*db, 1, mainnet_hard_fork_version_1_till);
-  }
-  if (m_nettype == FAKECHAIN)
-  {
-    for (size_t n = 0; test_options->hard_forks[n].first; ++n)
-      m_hardfork->add_fork(test_options->hard_forks[n].first, test_options->hard_forks[n].second, 0, n + 1);
-  }
-  else if (m_nettype == TESTNET)
-  {
-    for (size_t n = 0; n < num_testnet_hard_forks; ++n)
-      m_hardfork->add_fork(testnet_hard_forks[n].version, testnet_hard_forks[n].height, testnet_hard_forks[n].threshold, testnet_hard_forks[n].time);
-  }
-  else if (m_nettype == STAGENET)
-  {
-    for (size_t n = 0; n < num_stagenet_hard_forks; ++n)
-      m_hardfork->add_fork(stagenet_hard_forks[n].version, stagenet_hard_forks[n].height, stagenet_hard_forks[n].threshold, stagenet_hard_forks[n].time);
-  }
-  else
-  {
-    for (size_t n = 0; n < num_mainnet_hard_forks; ++n)
-      m_hardfork->add_fork(mainnet_hard_forks[n].version, mainnet_hard_forks[n].height, mainnet_hard_forks[n].threshold, mainnet_hard_forks[n].time);
-  }
+    m_hardfork = new HardFork(*db, 1, mainnet_hard_fork_version_1_till);
+
+  // Add ONLY mainnet forks:
+  for (size_t n = 0; n < num_mainnet_hard_forks; ++n)
+    m_hardfork->add_fork(mainnet_hard_forks[n].version,
+                        mainnet_hard_forks[n].height,
+                        mainnet_hard_forks[n].threshold,
+                        mainnet_hard_forks[n].time);
+
   m_hardfork->init();
+
 
   m_db->set_hard_fork(m_hardfork);
 
